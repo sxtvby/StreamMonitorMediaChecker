@@ -1,1 +1,14 @@
+<!DOCTYPE html>
+<html>
+<body style="background:black;color:white;text-align:center">
 
+<h2>🔐 Login Privado</h2>
+
+<form method="POST">
+<input name="user" placeholder="Usuario"><br><br>
+<input name="password" type="password" placeholder="Contraseña"><br><br>
+<button>Entrar</button>
+</form>
+
+</body>
+</html>
