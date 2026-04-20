@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html>
-<body style="background:#0f172a;color:white;text-align:center">
+<body style="background:#0f172a;color:white;text-align:center;font-family:monospace">
 
-<h1>PANEL PRO 🔥</h1>
+<h1>🔥 PANEL PRO</h1>
 
 <textarea id="urls" style="width:90%;height:120px;"></textarea><br><br>
 
@@ -10,7 +10,7 @@
 <button onclick="download()">📥 EXPORTAR</button>
 
 <h2>RESULTADOS</h2>
-<div id="resultados"></div>
+<div id="resultados" style="text-align:left;white-space:pre-wrap;"></div>
 
 <script>
 
@@ -19,15 +19,15 @@ let resultados = []
 async function scan(){
     let urls = document.getElementById("urls").value.split("\n")
     let div = document.getElementById("resultados")
-    div.innerHTML = "⏳ Escaneando...\n"
 
+    div.innerHTML = "⏳ Escaneando...\n\n"
     resultados = []
 
     for(let i=0;i<urls.length;i++){
         let url = urls[i].trim()
         if(!url) continue
 
-        div.innerHTML += "<br>🔎 Revisando: " + url
+        div.innerHTML += "🔎 Revisando: " + url + "\n"
 
         let res = await fetch("/scan",{
             method:"POST",
@@ -38,12 +38,34 @@ async function scan(){
         let data = await res.json()
 
         if(data.length > 0){
-            resultados.push(data[0])
+            let c = data[0]
+            resultados.push(c)
 
-            div.innerHTML += "<br>✅ VALIDA<br>"
-        }else{
-            div.innerHTML += "<br>❌ INVALIDA<br>"
+            let bloque = `
+╭───✦ HIT HUNTER
+├● 👑 ᴜꜱᴇʀ : ${c.user}
+├● 🔐 ᴩᴀꜱꜱ : ${c.pass}
+├● ✅ ꜱᴛᴀᴛᴜꜱ : Active
+├● 📶 ᴀᴄᴛɪᴠᴇ : ${c.active}
+├● 📡 ᴍᴀx : ${c.max}
+├● ⏰ ᴄʀᴇᴀᴛᴇᴅ : ${c.created}
+├● 📅 ᴇxᴘɪʀᴀᴛɪᴏɴ : ${c.exp}
+├● 🌐 ꜱᴇʀᴠᴇʀ : ${c.server}
+├● 🕰️ ᴛɪᴍᴇᴢᴏɴᴇ : ${c.timezone}
+├● ⚡ ꜱᴄᴀɴᴛʏᴩᴇ : panel
+├● 👤 нιт вʏ : PANEL PRO
+╰───✦ 🚀
+
+🌐 ᴍ3ᴜ : ${c.m3u}
+
+`
+
+            div.innerHTML += "✅ CUENTA VALIDA:\n" + bloque + "\n"
+        } else {
+            div.innerHTML += "❌ INVALIDA\n\n"
         }
+
+        div.scrollTop = div.scrollHeight
     }
 }
 
