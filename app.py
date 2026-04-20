@@ -22,21 +22,18 @@ except:
 # ===== LOGIN =====
 @app.route("/login", methods=["GET","POST"])
 def login():
-    try:
-        if request.method == "POST":
-            user = request.form.get("user")
-            password = request.form.get("password")
+    if request.method == "POST":
+        user = request.form["user"]
+        password = request.form["password"]
 
-            db = get_db()
-            u = db.execute("SELECT * FROM users WHERE username=?", (user,)).fetchone()
+        db = get_db()
+        u = db.execute("SELECT * FROM users WHERE username=?", (user,)).fetchone()
 
-            if u and check_password_hash(u[2], password):
-                session["user"] = user
-                return redirect("/")
+        if u and check_password_hash(u[2], password):
+            session["user"] = user
+            return redirect("/")
 
-        return render_template("login.html")
-    except Exception as e:
-        return f"Error en login: {e}"
+    return render_template("login.html")
 
 # ===== LOGOUT =====
 @app.route("/logout")
@@ -54,24 +51,24 @@ def format_fecha(ts):
     except:
         return "N/A"
 
-# ===== CHECK STREAM =====
-def check_stream_working(url):
+# ===== CHECK STREAM REAL =====
+def check_stream(url):
     try:
         headers = {"User-Agent": "Mozilla/5.0"}
         r = requests.get(url, headers=headers, stream=True, timeout=8)
-        for chunk in r.iter_content(chunk_size=1024):
+        for chunk in r.iter_content(1024):
             if chunk:
                 return True
         return False
     except:
         return False
 
-# ===== VERIFICACIÓN =====
+# ===== VERIFICACIÓN PRO (MEJORADA) =====
 def verificar(url):
     try:
-        time.sleep(2)
+        time.sleep(2)  # 👈 modo humano
 
-        # ===== USER/PASS =====
+        # ===== IPTV USER/PASS =====
         if "get.php" in url:
             base = url.split("/get.php")[0]
             user = url.split("username=")[1].split("&")[0]
@@ -90,15 +87,16 @@ def verificar(url):
 
             if info.get("auth") == 1:
 
+                # 👇 ahora verificamos canales reales
                 lista = requests.get(url, timeout=10).text
                 canales = [l for l in lista.split("\n") if l.startswith("http")]
 
-                canales_validos = 0
-                for c in canales[:3]:
-                    if check_stream_working(c):
-                        canales_validos += 1
+                validos = 0
+                for c in canales[:3]:  # solo 3 (más seguro)
+                    if check_stream(c):
+                        validos += 1
 
-                estado = "OK" if canales_validos > 0 else "STREAM_FAIL"
+                estado = "OK" if validos > 0 else "STREAM_FAIL"
 
                 return {
                     "estado": estado,
@@ -108,16 +106,17 @@ def verificar(url):
 
             return {"estado": "INVALID", "exp": "N/A", "canales": 0}
 
-        # ===== LISTA NORMAL =====
+        # ===== LISTA PUBLICA =====
         else:
             r = requests.get(url, timeout=10)
 
             if r.status_code == 200 and "#EXTM3U" in r.text:
+
                 canales = [l for l in r.text.split("\n") if l.startswith("http")]
 
                 validos = 0
                 for c in canales[:3]:
-                    if check_stream_working(c):
+                    if check_stream(c):
                         validos += 1
 
                 estado = "OK" if validos > 0 else "STREAM_FAIL"
@@ -130,102 +129,87 @@ def verificar(url):
 
             return {"estado": "INVALID", "exp": "N/A", "canales": 0}
 
-    except Exception as e:
+    except:
         return {"estado": "ERROR", "exp": "N/A", "canales": 0}
 
 # ===== HOME =====
 @app.route("/")
 def home():
-    try:
-        if not auth():
-            return redirect("/login")
+    if not auth():
+        return redirect("/login")
 
-        db = get_db()
-        listas = db.execute("SELECT * FROM listas").fetchall()
+    db = get_db()
+    listas = db.execute("SELECT * FROM listas").fetchall()
 
-        total = len(listas)
-        ok = len([l for l in listas if l[2] == "OK"])
-        bad = len([l for l in listas if l[2] == "INVALID"])
+    total = len(listas)
+    ok = len([l for l in listas if l[2] == "OK"])
+    bad = len([l for l in listas if l[2] == "INVALID"])
 
-        return render_template("index.html", listas=listas, total=total, ok=ok, bad=bad)
+    return render_template("index.html", listas=listas, total=total, ok=ok, bad=bad)
 
-    except Exception as e:
-        return f"Error en HOME: {e}"
-
-# ===== ADD =====
+# ===== AÑADIR =====
 @app.route("/add", methods=["POST"])
 def add():
-    try:
-        if not auth():
-            return jsonify({"error":"login"})
+    if not auth():
+        return jsonify({"error":"login"})
 
-        urls = request.json.get("urls", "").split("\n")
-        db = get_db()
+    urls = request.json["urls"].split("\n")
+    db = get_db()
 
-        for url in urls:
-            url = url.strip()
-            if url:
-                try:
-                    db.execute("INSERT INTO listas (url,estado) VALUES (?,?)",(url,"NEW"))
-                except:
-                    pass
+    for url in urls:
+        url = url.strip()
+        if url:
+            try:
+                db.execute("INSERT INTO listas (url,estado) VALUES (?,?)",(url,"NEW"))
+            except:
+                pass
 
-        db.commit()
-        return jsonify({"ok":True})
-    except Exception as e:
-        return jsonify({"error":str(e)})
+    db.commit()
+    return jsonify({"ok":True})
 
 # ===== SCAN =====
 @app.route("/scan")
 def scan():
-    try:
-        if not auth():
-            return jsonify({"error":"login"})
+    if not auth():
+        return jsonify({"error":"login"})
 
-        db = get_db()
-        listas = db.execute("SELECT * FROM listas").fetchall()
+    db = get_db()
+    listas = db.execute("SELECT * FROM listas").fetchall()
 
-        for l in listas:
-            resultado = verificar(l[1])
+    for l in listas:
+        resultado = verificar(l[1])
 
-            db.execute("""
-            UPDATE listas 
-            SET estado=?, exp=?, canales=?, ultima_revision=? 
-            WHERE id=?
-            """,
-            (
-                resultado["estado"],
-                resultado["exp"],
-                resultado["canales"],
-                datetime.now().strftime("%d/%m/%Y %H:%M"),
-                l[0]
-            ))
+        db.execute("""
+        UPDATE listas 
+        SET estado=?, exp=?, canales=?, ultima_revision=? 
+        WHERE id=?
+        """,
+        (
+            resultado["estado"],
+            resultado["exp"],
+            resultado["canales"],
+            datetime.now().strftime("%d/%m/%Y %H:%M"),
+            l[0]
+        ))
 
-        db.commit()
-        return jsonify({"ok":True})
-
-    except Exception as e:
-        return jsonify({"error":str(e)})
-
+    db.commit()
+    return jsonify({"ok":True})
+    
 # ===== EXPORT =====
 @app.route("/export")
 def export():
-    try:
-        db = get_db()
-        listas = db.execute("SELECT * FROM listas WHERE estado='OK'").fetchall()
+    db = get_db()
+    listas = db.execute("SELECT * FROM listas WHERE estado='OK'").fetchall()
 
-        with open("validas.txt","w",encoding="utf-8") as f:
-            for l in listas:
-                f.write(f"""URL: {l[1]}
+    with open("validas.txt","w",encoding="utf-8") as f:
+        for l in listas:
+            f.write(f"""URL: {l[1]}
 EXP: {l[3]}
 CANALES: {l[4]}
 
 """)
 
-        return send_file("validas.txt", as_attachment=True)
-
-    except Exception as e:
-        return str(e)
+    return send_file("validas.txt", as_attachment=True)
 
 # ===== RUN =====
 if __name__ == "__main__":
