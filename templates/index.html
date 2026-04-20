@@ -2,40 +2,65 @@
 <html>
 <body style="background:#0f172a;color:white;text-align:center">
 
-<h1>IPTV PANEL PRO</h1>
+<h1>PANEL PRO 🔥</h1>
 
-<h3>Total: {{total}} | OK: {{ok}} | INVALID: {{bad}}</h3>
+<textarea id="urls" style="width:90%;height:120px;"></textarea><br><br>
 
-<textarea id="urls" style="width:90%;height:100px;"></textarea><br><br>
+<button onclick="scan()">🚀 ESCANEAR</button>
+<button onclick="download()">📥 EXPORTAR</button>
 
-<button onclick="add()">Añadir</button>
-<button onclick="scan()">Escanear</button>
-<a href="/export"><button>Exportar</button></a>
-
-<h2>Listas</h2>
-
-{% for l in listas %}
-<div style="margin:10px;padding:10px;background:#020617">
-{{l[1]}}<br>
-Estado: {{l[2]}}<br>
-Exp: {{l[3]}}<br>
-Canales: {{l[4]}}<br>
-{{l[5]}}
-</div>
-{% endfor %}
+<h2>RESULTADOS</h2>
+<div id="resultados"></div>
 
 <script>
-function add(){
-fetch("/add",{
-method:"POST",
-headers:{"Content-Type":"application/json"},
-body:JSON.stringify({urls:document.getElementById("urls").value})
-}).then(()=>location.reload());
+
+let resultados = []
+
+async function scan(){
+    let urls = document.getElementById("urls").value.split("\n")
+    let div = document.getElementById("resultados")
+    div.innerHTML = "⏳ Escaneando...\n"
+
+    resultados = []
+
+    for(let i=0;i<urls.length;i++){
+        let url = urls[i].trim()
+        if(!url) continue
+
+        div.innerHTML += "<br>🔎 Revisando: " + url
+
+        let res = await fetch("/scan",{
+            method:"POST",
+            headers:{"Content-Type":"application/json"},
+            body:JSON.stringify({urls:url})
+        })
+
+        let data = await res.json()
+
+        if(data.length > 0){
+            resultados.push(data[0])
+
+            div.innerHTML += "<br>✅ VALIDA<br>"
+        }else{
+            div.innerHTML += "<br>❌ INVALIDA<br>"
+        }
+    }
 }
 
-function scan(){
-fetch("/scan").then(()=>location.reload());
+async function download(){
+    let res = await fetch("/export",{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify(resultados)
+    })
+
+    let blob = await res.blob()
+    let a = document.createElement("a")
+    a.href = URL.createObjectURL(blob)
+    a.download = "hits.txt"
+    a.click()
 }
+
 </script>
 
 </body>
