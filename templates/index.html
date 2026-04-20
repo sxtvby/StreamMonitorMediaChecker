@@ -2,23 +2,25 @@
 <html>
 <body style="background:#0f172a;color:white;text-align:center">
 
-<h1>🚀 PANEL PRIVADO ANTI-BAN</h1>
+<h1>STREAM PANEL</h1>
+
+<h3>Total: {{total}} | OK: {{ok}} | INVALID: {{bad}}</h3>
 
 <textarea id="urls" style="width:90%;height:100px;"></textarea><br><br>
 
-<button onclick="add()">➕ Añadir</button>
-<button onclick="scan()">🧠 Escaneo humano</button>
-<a href="/export"><button>📥 Exportar</button></a>
-<a href="/logout"><button>🔐 Salir</button></a>
+<button onclick="add()">Añadir</button>
+<button onclick="scan()">Escanear</button>
+<a href="/export"><button>Exportar</button></a>
 
-<h2>Resultados</h2>
+<h2>Listas</h2>
 
-{% for u in data %}
+{% for l in listas %}
 <div style="margin:10px;padding:10px;background:#020617">
-{{u[1]}}<br>
-Estado: {{u[2]}}<br>
-Tiempo: {{u[3]}}s<br>
-{{u[4]}}
+{{l[1]}}<br>
+Estado: {{l[2]}}<br>
+Exp: {{l[3]}}<br>
+Canales: {{l[4]}}<br>
+{{l[5]}}
 </div>
 {% endfor %}
 
@@ -32,7 +34,7 @@ body:JSON.stringify({urls:document.getElementById("urls").value})
 }
 
 function scan(){
-fetch("/scan").then(()=>alert("Procesando en cola..."));
+fetch("/scan").then(()=>location.reload());
 }
 </script>
 
