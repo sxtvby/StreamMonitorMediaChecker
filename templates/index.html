@@ -8,6 +8,7 @@
 
 <button onclick="add()">➕ Añadir</button>
 <button onclick="start()">✅ Verificar</button>
+<a href="/export"><button>📥 Exportar .txt</button></a>
 
 <h2>RESULTADOS</h2>
 <div id="results"></div>
@@ -19,7 +20,7 @@ method:"POST",
 headers:{"Content-Type":"application/json"},
 body:JSON.stringify({urls:document.getElementById("urls").value})
 }).then(()=>{
-document.getElementById("urls").value = ""; // limpiar
+document.getElementById("urls").value = "";
 });
 }
 
