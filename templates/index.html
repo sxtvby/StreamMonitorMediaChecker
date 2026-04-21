@@ -26,8 +26,9 @@ document.getElementById("urls").value = "";
 
 function start(){
 fetch("/verificar");
-setInterval(load,2000);
 }
+
+setInterval(load,2000);
 
 function load(){
 fetch("/results")
