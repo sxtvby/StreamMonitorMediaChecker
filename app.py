@@ -8,7 +8,7 @@ app.secret_key = "secret123"
 
 init_db()
 
-# ===== CREAR ADMIN =====
+# ===== ADMIN =====
 db = get_db()
 try:
     db.execute("INSERT INTO users (username,password) VALUES (?,?)",
@@ -38,8 +38,7 @@ def auth():
 
 # ===== FORMATO =====
 def format_output(c):
-    return f"""
-╭───✦ HIT HUNTER
+    return f"""╭───✦ HIT HUNTER
 ├● 👑 ᴜꜱᴇʀ : {c['user']}
 ├● 🔐 ᴩᴀꜱꜱ : {c['pass']}
 ├● ✅ ꜱᴛᴀᴛᴜꜱ : Active
@@ -57,12 +56,14 @@ def format_output(c):
 ╰───✦ 🚀
 
 🌐 ᴍ3ᴜ : {c['url']}
-
 """
 
-# ===== VERIFICACIÓN ESTABLE =====
+# ===== VERIFICACIÓN SEGURA =====
 def verificar(url):
     try:
+        if "username=" not in url:
+            return None
+
         base = url.split("/get.php")[0]
         user = url.split("username=")[1].split("&")[0]
         password = url.split("password=")[1].split("&")[0]
@@ -70,10 +71,17 @@ def verificar(url):
         api = f"{base}/player_api.php?username={user}&password={password}"
 
         t1 = time.time()
-        r = requests.get(api, timeout=8)
-        latency = int((time.time() - t1)*1000)
+        r = requests.get(api, timeout=6)
 
-        data = r.json()
+        if r.status_code != 200:
+            return None
+
+        try:
+            data = r.json()
+        except:
+            return None
+
+        latency = int((time.time() - t1)*1000)
 
         info = data.get("user_info", {})
         server = data.get("server_info", {})
@@ -84,10 +92,10 @@ def verificar(url):
         # ===== CONTAR CANALES =====
         canales = 0
         try:
-            m3u = requests.get(url, timeout=8).text
+            m3u = requests.get(url, timeout=6).text
             canales = m3u.count("#EXTINF")
         except:
-            canales = 0
+            pass
 
         return {
             "user": user,
@@ -135,26 +143,32 @@ def add():
     db.commit()
     return jsonify({"ok":True})
 
-# ===== SCAN LENTO (ANTI BLOQUEOS TÉCNICOS) =====
+# ===== SCAN NO BLOQUEANTE =====
 @app.route("/scan")
 def scan():
     db = get_db()
     listas = db.execute("SELECT * FROM listas").fetchall()
 
     for l in listas:
-        result = verificar(l[1])
+        try:
+            result = verificar(l[1])
 
-        if result:
-            texto = format_output(result)
+            if result:
+                texto = format_output(result)
+                db.execute("UPDATE listas SET estado=?, resultado=? WHERE id=?",
+                           ("OK", texto, l[0]))
+            else:
+                db.execute("UPDATE listas SET estado=?, resultado=? WHERE id=?",
+                           ("INVALID", "❌ No válida", l[0]))
+
+            db.commit()
+            time.sleep(1)  # 🔥 evita bloqueo
+
+        except Exception as e:
             db.execute("UPDATE listas SET estado=?, resultado=? WHERE id=?",
-                       ("OK", texto, l[0]))
-        else:
-            db.execute("UPDATE listas SET estado=? WHERE id=?",
-                       ("INVALID", l[0]))
+                       ("ERROR", str(e), l[0]))
+            db.commit()
 
-        time.sleep(2)  # 🔥 MODO HUMANO
-
-    db.commit()
     return jsonify({"ok":True})
 
 # ===== EXPORT =====
@@ -165,7 +179,7 @@ def export():
 
     with open("hits.txt","w",encoding="utf-8") as f:
         for l in listas:
-            f.write(l[0] + "\n")
+            f.write(l[0] + "\n\n")
 
     return send_file("hits.txt", as_attachment=True)
 
