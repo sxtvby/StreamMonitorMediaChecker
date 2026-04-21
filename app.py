@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request, jsonify, redirect, session, send_file
-import requests, time
+import requests, time, socket
 from datetime import datetime
 from db import get_db, init_db
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -49,7 +49,30 @@ def format_fecha(ts):
     except:
         return "N/A"
 
-# ===== VERIFICACIÓN REAL =====
+# ===== DETECCIÓN AVANZADA =====
+def detectar_servidor(base):
+    try:
+        host = base.replace("http://","").replace("https://","").split(":")[0]
+
+        ip = socket.gethostbyname(host)
+
+        geo = requests.get(f"http://ip-api.com/json/{ip}", timeout=5).json()
+
+        return {
+            "ip": ip,
+            "pais": geo.get("country", "N/A"),
+            "isp": geo.get("isp", "N/A"),
+            "timezone_geo": geo.get("timezone", "N/A")
+        }
+    except:
+        return {
+            "ip": "N/A",
+            "pais": "N/A",
+            "isp": "N/A",
+            "timezone_geo": "N/A"
+        }
+
+# ===== VERIFICACIÓN PRO =====
 def verificar(url):
     try:
         if "username=" in url and "password=" in url:
@@ -58,9 +81,11 @@ def verificar(url):
             user = url.split("username=")[1].split("&")[0]
             password = url.split("password=")[1].split("&")[0]
 
+            # ⏱️ LATENCIA
+            start = time.time()
             api = f"{base}/player_api.php?username={user}&password={password}"
-
             r = requests.get(api, timeout=8)
+            latency = round((time.time() - start) * 1000)
 
             if r.status_code != 200:
                 return None
@@ -72,7 +97,7 @@ def verificar(url):
             if info.get("auth") != 1:
                 return None
 
-            # ===== VALIDAR CANALES =====
+            # 📡 CANALES
             try:
                 m3u = requests.get(url, timeout=8).text
                 canales = m3u.count("#EXTINF")
@@ -81,6 +106,17 @@ def verificar(url):
             except:
                 return None
 
+            # 🌍 GEO INFO
+            geo = detectar_servidor(base)
+
+            # 🕰️ TIMEZONE FINAL
+            timezone = (
+                server.get("timezone")
+                or info.get("timezone")
+                or geo.get("timezone_geo")
+                or "Desconocido"
+            )
+
             return {
                 "user": user,
                 "pass": password,
@@ -88,9 +124,14 @@ def verificar(url):
                 "created": format_fecha(info.get("created_at")),
                 "active": info.get("active_cons", 0),
                 "max": info.get("max_connections", 0),
-                "timezone": server.get("timezone", "N/A"),
+                "timezone": timezone,
                 "server": base,
-                "m3u": url
+                "m3u": url,
+                "pais": geo["pais"],
+                "isp": geo["isp"],
+                "ip": geo["ip"],
+                "latency": latency,
+                "canales": canales
             }
 
         return None
@@ -103,17 +144,12 @@ def verificar(url):
 def home():
     if not auth():
         return redirect("/login")
-
     return render_template("index.html")
 
 # ===== SCAN =====
 @app.route("/scan", methods=["POST"])
 def scan():
-    if not auth():
-        return jsonify({"error":"login"})
-
     urls = request.json["urls"].split("\n")
-
     resultados = []
 
     for url in urls:
@@ -126,7 +162,7 @@ def scan():
         if data:
             resultados.append(data)
 
-        time.sleep(1.5)  # 🔥 MODO HUMANO
+        time.sleep(1.5)
 
     return jsonify(resultados)
 
@@ -146,8 +182,11 @@ def export():
 ├● ⏰ ᴄʀᴇᴀᴛᴇᴅ : {c['created']}
 ├● 📅 ᴇxᴘɪʀᴀᴛɪᴏɴ : {c['exp']}
 ├● 🌐 ꜱᴇʀᴠᴇʀ : {c['server']}
+├● 🌍 ᴘᴀɪꜱ : {c['pais']}
+├● 📡 ɪꜱᴘ : {c['isp']}
+├● ⚡ ʟᴀᴛᴇɴᴄʏ : {c['latency']} ms
 ├● 🕰️ ᴛɪᴍᴇᴢᴏɴᴇ : {c['timezone']}
-├● ⚡ ꜱᴄᴀɴᴛʏᴩᴇ : panel
+├● 📺 ᴄᴀɴᴀʟᴇꜱ : {c['canales']}
 ├● 👤 нιт вʏ : PANEL PRO
 ╰───✦ 🚀
 
@@ -160,4 +199,3 @@ def export():
 
 if __name__ == "__main__":
     app.run()
- 
