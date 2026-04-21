@@ -11,8 +11,7 @@ def init_db():
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         url TEXT UNIQUE,
         estado TEXT,
-        canales INTEGER,
-        ultima_revision TEXT
+        resultado TEXT
     )
     """)
 
