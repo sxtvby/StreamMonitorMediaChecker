@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request, jsonify, redirect, session, send_file
-import requests, time
+import requests, time, threading
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
 from db import get_db, init_db
@@ -41,24 +41,24 @@ def logout():
 def auth():
     return "user" in session
 
-# ===== FORMATO FECHA =====
+# ===== FECHA =====
 def fmt_fecha(ts):
     try:
         return datetime.fromtimestamp(int(ts)).strftime('%d/%m/%Y')
     except:
         return "N/A"
 
-# ===== DETECCIÓN REAL DE CANALES =====
-def check_canales(m3u_url):
+# ===== CANALES =====
+def check_canales(url):
     try:
-        r = requests.get(m3u_url, timeout=5)
+        r = requests.get(url, timeout=5)
         if "#EXTM3U" in r.text:
             return r.text.count("#EXTINF")
-        return 0
     except:
-        return 0
+        pass
+    return 0
 
-# ===== FORMATO FINAL =====
+# ===== FORMATO =====
 def format_ok(c):
     return f"""╭───✦ HIT HUNTER
 ├● 👑 ᴜꜱᴇʀ : {c['user']}
@@ -78,10 +78,9 @@ def format_ok(c):
 🌐 ᴍ3ᴜ : {c['url']}
 """
 
-# ===== VERIFICACIÓN =====
+# ===== VERIFICAR UNO =====
 def verificar_one(row):
     id, url = row[0], row[1]
-
     db = get_db()
 
     try:
@@ -90,7 +89,6 @@ def verificar_one(row):
         password = url.split("password=")[1].split("&")[0]
 
         api = f"{base}/player_api.php?username={user}&password={password}"
-
         r = requests.get(api, timeout=6)
 
         if r.status_code != 200:
@@ -107,9 +105,7 @@ def verificar_one(row):
             db.commit()
             return
 
-        # ===== CANALES REALES =====
-        m3u_url = url
-        canales = check_canales(m3u_url)
+        canales = check_canales(url)
 
         c = {
             "user": user,
@@ -132,16 +128,18 @@ def verificar_one(row):
         db.execute("UPDATE listas SET estado='ERROR', resultado='❌ ERROR' WHERE id=?", (id,))
         db.commit()
 
-# ===== VERIFICAR MULTI (ANTI BAN) =====
-@app.route("/verificar")
-def scan():
+# ===== BACKGROUND SCAN =====
+def scan_background():
     db = get_db()
     listas = db.execute("SELECT * FROM listas").fetchall()
 
-    # 🔥 THREADS CONTROLADOS (no te banean)
     with ThreadPoolExecutor(max_workers=3) as executor:
         executor.map(verificar_one, listas)
 
+# ===== START SCAN =====
+@app.route("/verificar")
+def scan():
+    threading.Thread(target=scan_background).start()
     return jsonify({"ok":True})
 
 # ===== RESULTS =====
