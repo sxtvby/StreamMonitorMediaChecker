@@ -1,55 +1,43 @@
 <!DOCTYPE html>
 <html>
-<body style="background:black;color:#00ffcc;font-family:monospace;text-align:center">
+<body style="background:#0f172a;color:white;text-align:center">
 
-<h1>⚡ PANEL PRO ⚡</h1>
+<h1>🚀 PANEL PRO</h1>
 
-<textarea id="urls" style="width:90%;height:120px;"></textarea><br><br>
+<textarea id="urls" style="width:90%;height:100px;"></textarea><br><br>
 
-<button onclick="add()">➕ Añadir</button>
-<button onclick="start()">✅ Verificar</button>
-<a href="/export"><button>📥 Exportar .txt</button></a>
+<button onclick="start()">Añadir y Verificar</button>
+<a href="/export"><button>Exportar .txt</button></a>
 
-<h2>RESULTADOS</h2>
-<div id="results"></div>
+<h2>Resultados</h2>
+<div id="resultados"></div>
 
 <script>
-function add(){
-fetch("/add",{
-method:"POST",
-headers:{"Content-Type":"application/json"},
-body:JSON.stringify({urls:document.getElementById("urls").value})
-}).then(()=>{
-document.getElementById("urls").value = "";
-});
+
+async function start(){
+
+    let urls = document.getElementById("urls").value;
+
+    await fetch("/add",{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({urls:urls})
+    });
+
+    document.getElementById("urls").value = "";
+
+    await fetch("/scan");
+
+    location.reload();
 }
 
-function start(){
-fetch("/verificar");
-}
-
-setInterval(load,2000);
-
-function load(){
-fetch("/results")
-.then(res=>res.json())
-.then(data=>{
-let html = "";
-
-data.forEach(x=>{
-let color = x.estado=="OK" ? "#00ff00" :
-            x.estado=="RUN" ? "#ffff00" :
-            "#ff0000";
-
-html += `<div style="border:1px solid ${color};margin:10px;padding:10px">
-<pre>${x.resultado || "⏳ Verificando..."}</pre>
-</div>`;
-});
-
-document.getElementById("results").innerHTML = html;
-});
-}
 </script>
+
+{% for l in listas %}
+<div style="background:#020617;margin:10px;padding:10px;white-space:pre-line;">
+{{l[3] if l[3] else "❌ ERROR"}}
+</div>
+{% endfor %}
 
 </body>
 </html>
