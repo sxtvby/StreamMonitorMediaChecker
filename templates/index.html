@@ -14,7 +14,7 @@
 
 {% for l in listas %}
 <div style="margin:10px;padding:10px;background:#020617">
-<pre>{{l[3]}}</pre>
+<pre>{{l[3] if l[3] else "⏳ Pendiente..."}}</pre>
 </div>
 {% endfor %}
 
