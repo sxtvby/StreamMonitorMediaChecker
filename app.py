@@ -1,15 +1,13 @@
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, send_file
 import requests, time
 from db import get_db, init_db
 
 app = Flask(__name__)
-
 init_db()
 
-# ===== FORMATO =====
+# ===== FORMATO FINAL =====
 def format_output(c):
-    return f"""╭───✦ HIT HUNTER
-├● 👑 ᴜꜱᴇʀ : {c['user']}
+    return f"""├● 👑 ᴜꜱᴇʀ : {c['user']}
 ├● 🔐 ᴩᴀꜱꜱ : {c['pass']}
 ├● ✅ ꜱᴛᴀᴛᴜꜱ : Active
 ├● 📶 ᴀᴄᴛɪᴠᴇ : {c['active']}
@@ -28,7 +26,7 @@ def format_output(c):
 🌐 ᴍ3ᴜ : {c['url']}
 """
 
-# ===== VERIFICACIÓN REAL =====
+# ===== VERIFICACIÓN ESTABLE =====
 def verificar(url):
     try:
         if "username=" not in url:
@@ -41,13 +39,17 @@ def verificar(url):
         api = f"{base}/player_api.php?username={user}&password={password}"
 
         t1 = time.time()
-        r = requests.get(api, timeout=6)
+        r = requests.get(api, timeout=8)
+
+        latency = int((time.time() - t1) * 1000)
 
         if r.status_code != 200:
             return None
 
-        data = r.json()
-        latency = int((time.time() - t1)*1000)
+        try:
+            data = r.json()
+        except:
+            return None
 
         info = data.get("user_info", {})
         server = data.get("server_info", {})
@@ -55,24 +57,25 @@ def verificar(url):
         if info.get("auth") != 1:
             return None
 
+        # ===== CANALES =====
         canales = 0
         try:
-            m3u = requests.get(url, timeout=6).text
+            m3u = requests.get(url, timeout=8).text
             canales = m3u.count("#EXTINF")
         except:
-            pass
+            canales = 0
 
         return {
             "user": user,
             "pass": password,
-            "active": info.get("active_cons", 0),
-            "max": info.get("max_connections", 0),
-            "created": info.get("created_at","N/A"),
-            "exp": info.get("exp_date","N/A"),
+            "active": info.get("active_cons", "N/A"),
+            "max": info.get("max_connections", "N/A"),
+            "created": info.get("created_at", "N/A"),
+            "exp": info.get("exp_date", "N/A"),
             "server": base,
-            "timezone": server.get("timezone","N/A"),
-            "pais": server.get("country","N/A"),
-            "isp": server.get("url","N/A"),
+            "pais": server.get("country", "N/A"),
+            "isp": server.get("url", "N/A"),
+            "timezone": server.get("timezone", "N/A"),
             "latency": latency,
             "canales": canales,
             "url": url
@@ -80,6 +83,11 @@ def verificar(url):
 
     except:
         return None
+
+# ===== HOME =====
+@app.route("/")
+def home():
+    return render_template("index.html")
 
 # ===== ADD =====
 @app.route("/add", methods=["POST"])
@@ -98,11 +106,11 @@ def add():
     db.commit()
     return jsonify({"ok":True})
 
-# ===== SCAN CONTROLADO =====
+# ===== SCAN =====
 @app.route("/scan")
 def scan():
     db = get_db()
-    listas = db.execute("SELECT * FROM listas WHERE estado='NEW' OR estado='RUN'").fetchall()
+    listas = db.execute("SELECT * FROM listas").fetchall()
 
     for l in listas:
         db.execute("UPDATE listas SET estado='RUN' WHERE id=?", (l[0],))
@@ -123,25 +131,28 @@ def scan():
 
     return jsonify({"ok":True})
 
-# ===== GET RESULTADOS =====
+# ===== RESULTS =====
 @app.route("/results")
 def results():
     db = get_db()
     listas = db.execute("SELECT * FROM listas").fetchall()
 
-    data = []
-    for l in listas:
-        data.append({
-            "url": l[1],
-            "estado": l[2],
-            "resultado": l[3]
-        })
+    return jsonify([
+        {"estado": l[2], "resultado": l[3]}
+        for l in listas
+    ])
 
-    return jsonify(data)
+# ===== EXPORT =====
+@app.route("/export")
+def export():
+    db = get_db()
+    listas = db.execute("SELECT * FROM listas WHERE estado='OK'").fetchall()
 
-@app.route("/")
-def home():
-    return render_template("index.html")
+    with open("validas.txt","w",encoding="utf-8") as f:
+        for l in listas:
+            f.write(l[3] + "\n\n")
+
+    return send_file("validas.txt", as_attachment=True)
 
 if __name__ == "__main__":
     app.run()
