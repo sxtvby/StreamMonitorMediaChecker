@@ -1,8 +1,11 @@
 from flask import Flask, render_template, request, jsonify, redirect, session, send_file
-import requests, time, socket
+import requests
 from datetime import datetime
 from db import get_db, init_db
 from werkzeug.security import generate_password_hash, check_password_hash
+import time
+import random
+import json
 
 app = Flask(__name__)
 app.secret_key = "supersecret"
@@ -49,130 +52,129 @@ def format_fecha(ts):
     except:
         return "N/A"
 
-# ===== DETECCIÓN AVANZADA =====
-def detectar_servidor(base):
-    try:
-        host = base.replace("http://","").replace("https://","").split(":")[0]
-
-        ip = socket.gethostbyname(host)
-
-        geo = requests.get(f"http://ip-api.com/json/{ip}", timeout=5).json()
-
-        return {
-            "ip": ip,
-            "pais": geo.get("country", "N/A"),
-            "isp": geo.get("isp", "N/A"),
-            "timezone_geo": geo.get("timezone", "N/A")
-        }
-    except:
-        return {
-            "ip": "N/A",
-            "pais": "N/A",
-            "isp": "N/A",
-            "timezone_geo": "N/A"
-        }
-
-# ===== VERIFICACIÓN PRO =====
+# ===== VERIFICACIÓN MEJORADA (SOLO TUS URLS) =====
 def verificar(url):
     try:
-        if "username=" in url and "password=" in url:
+        time.sleep(random.uniform(1, 2))  # comportamiento humano
 
+        if "get.php" in url:
             base = url.split("/get.php")[0]
             user = url.split("username=")[1].split("&")[0]
             password = url.split("password=")[1].split("&")[0]
 
-            # ⏱️ LATENCIA
-            start = time.time()
             api = f"{base}/player_api.php?username={user}&password={password}"
-            r = requests.get(api, timeout=8)
-            latency = round((time.time() - start) * 1000)
 
-            if r.status_code != 200:
-                return None
-
+            r = requests.get(api, timeout=10)
             data = r.json()
+
             info = data.get("user_info", {})
             server = data.get("server_info", {})
 
-            if info.get("auth") != 1:
-                return None
+            if info.get("auth") == 1:
 
-            # 📡 CANALES
-            try:
-                m3u = requests.get(url, timeout=8).text
-                canales = m3u.count("#EXTINF")
-                if canales < 5:
-                    return None
-            except:
-                return None
+                resultado = {
+                    "user": user,
+                    "pass": password,
+                    "active": info.get("active_cons", 0),
+                    "max": info.get("max_connections", 0),
+                    "created": format_fecha(info.get("created_at")),
+                    "exp": format_fecha(info.get("exp_date")),
+                    "server": base,
+                    "timezone": server.get("timezone", "N/A"),
+                    "canales": 0,
+                    "status": "OK"
+                }
 
-            # 🌍 GEO INFO
-            geo = detectar_servidor(base)
+                return resultado
 
-            # 🕰️ TIMEZONE FINAL
-            timezone = (
-                server.get("timezone")
-                or info.get("timezone")
-                or geo.get("timezone_geo")
-                or "Desconocido"
-            )
+            else:
+                return {"status": "INVALID"}
 
-            return {
-                "user": user,
-                "pass": password,
-                "exp": format_fecha(info.get("exp_date")),
-                "created": format_fecha(info.get("created_at")),
-                "active": info.get("active_cons", 0),
-                "max": info.get("max_connections", 0),
-                "timezone": timezone,
-                "server": base,
-                "m3u": url,
-                "pais": geo["pais"],
-                "isp": geo["isp"],
-                "ip": geo["ip"],
-                "latency": latency,
-                "canales": canales
-            }
+        else:
+            r = requests.get(url, timeout=10)
 
-        return None
+            if "#EXTM3U" in r.text:
+                canales = r.text.count("#EXTINF")
+                return {
+                    "user": "N/A",
+                    "pass": "N/A",
+                    "active": "-",
+                    "max": "-",
+                    "created": "-",
+                    "exp": "-",
+                    "server": url,
+                    "timezone": "-",
+                    "canales": canales,
+                    "status": "OK"
+                }
+
+        return {"status": "INVALID"}
 
     except:
-        return None
+        return {"status": "ERROR"}
 
 # ===== HOME =====
 @app.route("/")
 def home():
     if not auth():
         return redirect("/login")
-    return render_template("index.html")
 
-# ===== SCAN =====
-@app.route("/scan", methods=["POST"])
-def scan():
+    db = get_db()
+    listas = db.execute("SELECT * FROM listas").fetchall()
+
+    return render_template("index.html", listas=listas)
+
+# ===== AÑADIR =====
+@app.route("/add", methods=["POST"])
+def add():
     urls = request.json["urls"].split("\n")
-    resultados = []
+    db = get_db()
 
     for url in urls:
         url = url.strip()
-        if not url:
-            continue
+        if url:
+            try:
+                db.execute("INSERT INTO listas (url,estado) VALUES (?,?)",(url,"NEW"))
+            except:
+                pass
 
-        data = verificar(url)
+    db.commit()
+    return jsonify({"ok":True})
 
-        if data:
-            resultados.append(data)
+# ===== SCAN =====
+@app.route("/scan")
+def scan():
+    db = get_db()
+    listas = db.execute("SELECT * FROM listas").fetchall()
 
-        time.sleep(1.5)
+    for l in listas:
+        resultado = verificar(l[1])
 
-    return jsonify(resultados)
+        db.execute("""
+        UPDATE listas 
+        SET estado=?, data=?, ultima_revision=? 
+        WHERE id=?
+        """,
+        (
+            resultado.get("status"),
+            json.dumps(resultado),
+            datetime.now().strftime("%d/%m/%Y %H:%M"),
+            l[0]
+        ))
 
-# ===== EXPORT =====
-@app.route("/export", methods=["POST"])
+    db.commit()
+    return jsonify({"ok":True})
+
+# ===== EXPORT FORMATO PRO =====
+@app.route("/export")
 def export():
-    data = request.json
+    db = get_db()
+    listas = db.execute("SELECT data FROM listas WHERE estado='OK'").fetchall()
 
-    with open("hits.txt","w",encoding="utf-8") as f:
-        for c in data:
+    with open("validas.txt","w",encoding="utf-8") as f:
+        for l in listas:
+            c = json.loads(l[0])
+
             f.write(f"""╭───✦ HIT HUNTER
 ├● 👑 ᴜꜱᴇʀ : {c['user']}
 ├● 🔐 ᴩᴀꜱꜱ : {c['pass']}
@@ -182,20 +184,17 @@ def export():
 ├● ⏰ ᴄʀᴇᴀᴛᴇᴅ : {c['created']}
 ├● 📅 ᴇxᴘɪʀᴀᴛɪᴏɴ : {c['exp']}
 ├● 🌐 ꜱᴇʀᴠᴇʀ : {c['server']}
-├● 🌍 ᴘᴀɪꜱ : {c['pais']}
-├● 📡 ɪꜱᴘ : {c['isp']}
-├● ⚡ ʟᴀᴛᴇɴᴄʏ : {c['latency']} ms
 ├● 🕰️ ᴛɪᴍᴇᴢᴏɴᴇ : {c['timezone']}
 ├● 📺 ᴄᴀɴᴀʟᴇꜱ : {c['canales']}
 ├● 👤 нιт вʏ : PANEL PRO
 ╰───✦ 🚀
 
-🌐 ᴍ3ᴜ : {c['m3u']}
-
+🌐 ᴍ3ᴜ : {c['server']}/get.php?username={c['user']}&password={c['pass']}&type=m3u_plus
 
 """)
 
-    return send_file("hits.txt", as_attachment=True)
+    return send_file("validas.txt", as_attachment=True)
 
+# ===== RUN =====
 if __name__ == "__main__":
     app.run()
