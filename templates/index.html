@@ -1,16 +1,15 @@
 <!DOCTYPE html>
 <html>
-<body style="background:#0f172a;color:white;text-align:center;font-family:monospace">
+<body style="background:#0f172a;color:white;font-family:monospace">
 
-<h1>🔥 PANEL PRO</h1>
+<h1 style="text-align:center;">🔥 PANEL PRO MAX</h1>
 
-<textarea id="urls" style="width:90%;height:120px;"></textarea><br><br>
+<textarea id="urls" style="width:100%;height:120px;"></textarea><br><br>
 
 <button onclick="scan()">🚀 ESCANEAR</button>
 <button onclick="download()">📥 EXPORTAR</button>
 
-<h2>RESULTADOS</h2>
-<div id="resultados" style="text-align:left;white-space:pre-wrap;"></div>
+<pre id="resultados"></pre>
 
 <script>
 
@@ -20,14 +19,14 @@ async function scan(){
     let urls = document.getElementById("urls").value.split("\n")
     let div = document.getElementById("resultados")
 
-    div.innerHTML = "⏳ Escaneando...\n\n"
+    div.textContent = "⏳ Escaneando...\n\n"
     resultados = []
 
-    for(let i=0;i<urls.length;i++){
-        let url = urls[i].trim()
+    for(let url of urls){
+        url = url.trim()
         if(!url) continue
 
-        div.innerHTML += "🔎 Revisando: " + url + "\n"
+        div.textContent += "🔎 " + url + "\n"
 
         let res = await fetch("/scan",{
             method:"POST",
@@ -41,28 +40,20 @@ async function scan(){
             let c = data[0]
             resultados.push(c)
 
-            let bloque = `
+            div.textContent += `
 ╭───✦ HIT HUNTER
-├● 👑 ᴜꜱᴇʀ : ${c.user}
-├● 🔐 ᴩᴀꜱꜱ : ${c.pass}
-├● ✅ ꜱᴛᴀᴛᴜꜱ : Active
-├● 📶 ᴀᴄᴛɪᴠᴇ : ${c.active}
-├● 📡 ᴍᴀx : ${c.max}
-├● ⏰ ᴄʀᴇᴀᴛᴇᴅ : ${c.created}
-├● 📅 ᴇxᴘɪʀᴀᴛɪᴏɴ : ${c.exp}
-├● 🌐 ꜱᴇʀᴠᴇʀ : ${c.server}
-├● 🕰️ ᴛɪᴍᴇᴢᴏɴᴇ : ${c.timezone}
-├● ⚡ ꜱᴄᴀɴᴛʏᴩᴇ : panel
-├● 👤 нιт вʏ : PANEL PRO
-╰───✦ 🚀
-
-🌐 ᴍ3ᴜ : ${c.m3u}
+├ USER: ${c.user}
+├ PASS: ${c.pass}
+├ EXP: ${c.exp}
+├ COUNTRY: ${c.pais}
+├ ISP: ${c.isp}
+├ LATENCY: ${c.latency} ms
+├ CHANNELS: ${c.canales}
+╰───✦
 
 `
-
-            div.innerHTML += "✅ CUENTA VALIDA:\n" + bloque + "\n"
         } else {
-            div.innerHTML += "❌ INVALIDA\n\n"
+            div.textContent += "❌ INVALID\n\n"
         }
 
         div.scrollTop = div.scrollHeight
