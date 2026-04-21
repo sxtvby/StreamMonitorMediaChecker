@@ -6,8 +6,9 @@
 
 <textarea id="urls" style="width:90%;height:120px;"></textarea><br><br>
 
-<button onclick="add()">Añadir</button>
-<button onclick="start()">Iniciar Scan</button>
+<button onclick="add()">➕ Añadir</button>
+<button onclick="start()">🚀 Escanear</button>
+<a href="/export"><button>📥 Exportar</button></a>
 
 <br><br>
 
@@ -44,7 +45,11 @@ document.getElementById("bar").style.width = percent+"%";
 
 let html = "";
 data.forEach(x=>{
-html += `<div style="border:1px solid #00ffcc;margin:10px;padding:10px">
+let color = x.estado=="OK" ? "#00ff00" :
+            x.estado=="RUN" ? "#ffff00" :
+            "#ff0000";
+
+html += `<div style="border:1px solid ${color};margin:10px;padding:10px">
 <pre>${x.resultado || "⏳ Verificando..."}</pre>
 </div>`;
 });
